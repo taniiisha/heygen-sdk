@@ -31,7 +31,7 @@
     const SESSION_CONFIG = {
       mode: "FULL",
       avatar_id: "bf00036b-558a-44b5-b2ff-1e3cec0f4ceb",
-      is_sandbox: true,
+      is_sandbox: false,
       avatar_persona: { voice_id: "62bbb4b2-bb26-4727-bc87-cfb2bd4e0cc8" },
     };
 
