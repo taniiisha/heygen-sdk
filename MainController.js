@@ -83,7 +83,7 @@
 
     vm.handleStop = function () {
       $scope.$applyAsync(function () {
-        vm.avatarStatus = "Idle. ✅";
+        vm.avatarStatus = "listening";
       });
     };
 

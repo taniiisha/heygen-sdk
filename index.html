@@ -51,7 +51,7 @@
           Connect
         </button>
 
-        <div ng-if="mainVm.isConnected">
+        <div ng-if="mainVm.isConnected && mainVm.avatarStatus.trim() === 'connected' || mainVm.avatarStatus.trim() === 'listening'">
           <input
             type="text"
             id="promptText"

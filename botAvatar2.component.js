@@ -105,7 +105,7 @@
         // Step 3: Connect to LiveKit
         await connectToLiveKit();
         startSessionTimer();
-        logHighlight("✅ Connected", "#22c55e");
+        logHighlight("connected", "#22c55e");
 
         updateStatus("✅ Session is ready and streaming!");
         reconnectAttempts = 0;
@@ -174,8 +174,9 @@
     // 3. Connect to LiveKit (Updated)
     async function connectToLiveKit() {
       if (room) {
-        room.disconnect();
-      }
+            room.removeAllListeners(LivekitClient.RoomEvent.Disconnected);
+            room.disconnect();
+        }
 
       // Initialize LiveKit Room
       room = new LivekitClient.Room({
@@ -187,19 +188,46 @@
       room.on(
         LivekitClient.RoomEvent.TrackSubscribed,
         (track, publication, participant) => {
-          if (track.kind === "video" || track.kind === "audio") {
-            if (!mediaElement.srcObject) {
-              mediaElement.srcObject = new MediaStream();
-            }
-            mediaElement.srcObject.addTrack(track.mediaStreamTrack);
+          // if (track.kind === "video" || track.kind === "audio") {
+          //   if (!mediaElement.srcObject) {
+          //     mediaElement.srcObject = new MediaStream();
+          //   }
+          //   mediaElement.srcObject.addTrack(track.mediaStreamTrack);
+          // }
+
+          // if (track.kind === "video") {
+          //   // We use 'onresize' or 'onloadeddata' as a proxy for "frame received"
+          //   // or we can simply attach the element and wait a tiny bit.
+          //   track.attach(mediaElement);
+
+          //   // Listener for when video is actually playing pixels
+          //   mediaElement.onplaying = function () {
+          //     updateStatus("👁️ Video stream is playing, fading in...");
+          //     setVideoVisibility(true);
+          //   };
+          // }
+
+          if (!mediaElement.srcObject) {
+            mediaElement.srcObject = new MediaStream();
           }
 
-          if (track.kind === "video") {
-            // We use 'onresize' or 'onloadeddata' as a proxy for "frame received"
-            // or we can simply attach the element and wait a tiny bit.
-            track.attach(mediaElement);
+          // 2. Add the track to the stream
+          mediaElement.srcObject.addTrack(track.mediaStreamTrack);
 
-            // Listener for when video is actually playing pixels
+          // 3. NEW: Specific handling for Audio
+          if (track.kind === "audio") {
+             // Explicitly Attach (LiveKit helper ensures mobile compatibility)
+             track.attach(mediaElement);
+             
+             // FORCE PLAY: Ensure the browser plays the new audio track
+             mediaElement.muted = false; 
+             mediaElement.play().catch(e => console.log("Audio autoplay check:", e));
+             updateStatus("🔊 Audio track received and attached.");
+          }
+
+          // 4. Specific handling for Video (Existing fade-in logic)
+          if (track.kind === "video") {
+            track.attach(mediaElement);
             mediaElement.onplaying = function () {
               updateStatus("👁️ Video stream is playing, fading in...");
               setVideoVisibility(true);
@@ -418,14 +446,26 @@
       // This reveals the 'fallback-video.mov' which is running underneath.
       setVideoVisibility(false);
       logHighlight("♻️ Reconnecting (Background)...", "#eab308");
-isRefreshing = true;
+      isRefreshing = true;
       // 2. Wait a moment for the fade-out to finish (e.g., 500ms), then reconnect
       setTimeout(function () {
         // We do NOT use 'attemptReconnect' here because that increases the retry counter.
         // We want a fresh restart.
 
         // Stop the old room explicitly
-        if (room) room.disconnect();
+        // if (room) {
+        //     room.removeAllListeners(LivekitClient.RoomEvent.Disconnected);
+        //     room.disconnect();
+        // }
+
+        // if (mediaElement) {
+        //     mediaElement.srcObject = null;
+        // }
+
+        closeSession();
+
+        // 2. Reset reconnection attempts so the new session gets a fresh start
+        reconnectAttempts = 0;
 
         // Optional: Call stop session API if you want to be clean,
         // but for speed, we might just start the new one.
