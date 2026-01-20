@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="AvatarPocApp">
+  <head>
+    <meta charset="UTF-8" />
+    <title>HeyGen Avatar POC</title>
+    <link rel="stylesheet" href="style.css" />
+
+    <!-- External Libraries -->
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script> -->
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.11.3/dist/livekit-client.umd.min.js"></script>
+  </head>
+
+  <body>
+    <div ng-controller="MainController as mainVm">
+     <div id="avatar-container">
+  <video 
+    src="fallback-video.mov" 
+    autoplay 
+    loop 
+    muted 
+    playsinline
+    class="background-video"
+  ></video>
+
+  <div ng-if="mainVm.isConnected" class="foreground-avatar">
+    <bot-avatar
+      text-prompt="mainVm.textForAvatar"
+      on-start-speaking="mainVm.handleStart()"
+      on-stop-speaking="mainVm.handleStop()"
+      on-session-error="mainVm.handleSessionError(message)"
+      api-key="mainVm.apiKey"
+      on-status-change="mainVm.handleStatusChange(status)"
+    >
+    </bot-avatar>
+  </div>
+</div>
+
+      <div id="status"><strong>Status:</strong> {{ mainVm.avatarStatus }}</div>
+
+      <div class="controls">
+        <!-- These buttons toggle the connection state -->
+        <button
+          class="secondary"
+          ng-if="mainVm.isConnected"
+          ng-click="mainVm.disconnect()"
+        >
+          Disconnect
+        </button>
+        <button ng-if="!mainVm.isConnected" ng-click="mainVm.connect()">
+          Connect
+        </button>
+
+        <div ng-if="mainVm.isConnected">
+          <input
+            type="text"
+            id="promptText"
+            ng-model="mainVm.promptText"
+            placeholder="The next question will appear here"
+          />
+          <button ng-click="mainVm.speak()">Ask Next Question</button>
+        </div>
+
+        <div ng-if="!mainVm.isConnected">
+          <input
+            type="text"
+            id="apiKey"
+            ng-model="mainVm.apiKey"
+            placeholder="Paste your api key here"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Template for the bot-avatar component -->
+    <script type="text/ng-template" id="botAvatar.tpl.html">
+      <video id="mediaElement" playsinline></video>
+    </script>
+
+    <!-- Your Application's JavaScript Files -->
+    <!-- The order is important! -->
+    <script src="app.js"></script>
+    <script src="MainController.js"></script>
+    <!-- <script src="botAvatar.component.js"></script> -->
+    <script src="botAvatar2.component.js"></script>
+  </body>
+</html>
