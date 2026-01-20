@@ -47,6 +47,7 @@
     // --- Internal State ---
     let isReady = false;
     let isSpeaking = false;
+    let isRefreshing = false;
     let sessionInfo = null; // Stores session_id, url, tokens
     let room = null;
     let sessionToken = null; // Token from step 1
@@ -261,6 +262,10 @@
       );
 
       room.on(LivekitClient.RoomEvent.Disconnected, (reason) => {
+        if (isRefreshing) {
+            updateStatus("🔌 Manual disconnect for refresh (Ignored).");
+            return;
+        }
         isReady = false;
         logHighlight(`🔌 Disconnected: ${reason}`, "#f97316");
         updateStatus(`🔌 Room disconnected: ${reason}`);
@@ -280,6 +285,8 @@
         sessionInfo.livekit_client_token
       );
       updateStatus("🔗 Connected to LiveKit room.");
+
+      isRefreshing = false;
     }
 
     // --- Updated: Send Text via Data Channel ---
@@ -411,7 +418,7 @@
       // This reveals the 'fallback-video.mov' which is running underneath.
       setVideoVisibility(false);
       logHighlight("♻️ Reconnecting (Background)...", "#eab308");
-
+isRefreshing = true;
       // 2. Wait a moment for the fade-out to finish (e.g., 500ms), then reconnect
       setTimeout(function () {
         // We do NOT use 'attemptReconnect' here because that increases the retry counter.
