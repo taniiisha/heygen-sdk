@@ -104,7 +104,7 @@
 
         // Step 3: Connect to LiveKit
         await connectToLiveKit();
-        startSessionTimer();
+        // startSessionTimer();
         logHighlight("connected", "#22c55e");
 
         updateStatus("✅ Session is ready and streaming!");
