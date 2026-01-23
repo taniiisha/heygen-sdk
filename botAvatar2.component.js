@@ -29,7 +29,7 @@
     // Note: 'CUSTOM' mode is used when you want to control the avatar via API (Repeat/Chat)
     // rather than using LiveAvatar's built-in LLM ('FULL' mode).
     const SESSION_CONFIG = {
-      mode: "F",
+      mode: "FULL",
       avatar_id: "bf00036b-558a-44b5-b2ff-1e3cec0f4ceb",
       is_sandbox: false,
       avatar_persona: { voice_id: "62bbb4b2-bb26-4727-bc87-cfb2bd4e0cc8" },
@@ -104,7 +104,7 @@
 
         // Step 3: Connect to LiveKit
         await connectToLiveKit();
-        // startSessionTimer();
+        startSessionTimer();
         logHighlight("connected", "#22c55e");
 
         updateStatus("✅ Session is ready and streaming!");
