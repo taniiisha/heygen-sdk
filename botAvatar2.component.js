@@ -33,16 +33,17 @@
       avatar_id: "bf00036b-558a-44b5-b2ff-1e3cec0f4ceb",
       is_sandbox: false,
       avatar_persona: { voice_id: "62bbb4b2-bb26-4727-bc87-cfb2bd4e0cc8" },
+      interactivity_type: 'PUSH_TO_TALK',
+
+      "session_idle_timeout": 600,
+
+      // 2. Add the legacy/SDK key just in case
+      "activity_idle_timeout": 600
+
     };
 
-    // const SESSION_CONFIG = {
-    //   mode: "FULL",
-    //   avatar_id: "dd73ea75-1218-4ef3-92ce-606d5f7fbc0a",
-    //   is_sandbox: true,
-    //   avatar_persona: { voice_id: "62bbb4b2-bb26-4727-bc87-cfb2bd4e0cc8" },
-    // };
+
     let sessionTimer = null;
-    // const SESSION_DURATION_MS = 110000; // 1 minute 50 seconds (Buffer for 2 min limit)
     const SESSION_DURATION_MS = 19 * 60 * 1000; // 20 minutes for LiveAvatar
     // --- Internal State ---
     let isReady = false;
@@ -104,7 +105,7 @@
 
         // Step 3: Connect to LiveKit
         await connectToLiveKit();
-        startSessionTimer();
+        // startSessionTimer();
         logHighlight("connected", "#22c55e");
 
         updateStatus("✅ Session is ready and streaming!");
@@ -174,9 +175,9 @@
     // 3. Connect to LiveKit (Updated)
     async function connectToLiveKit() {
       if (room) {
-            room.removeAllListeners(LivekitClient.RoomEvent.Disconnected);
-            room.disconnect();
-        }
+        room.removeAllListeners(LivekitClient.RoomEvent.Disconnected);
+        room.disconnect();
+      }
 
       // Initialize LiveKit Room
       room = new LivekitClient.Room({
@@ -216,13 +217,13 @@
 
           // 3. NEW: Specific handling for Audio
           if (track.kind === "audio") {
-             // Explicitly Attach (LiveKit helper ensures mobile compatibility)
-             track.attach(mediaElement);
-             
-             // FORCE PLAY: Ensure the browser plays the new audio track
-             mediaElement.muted = false; 
-             mediaElement.play().catch(e => console.log("Audio autoplay check:", e));
-             updateStatus("🔊 Audio track received and attached.");
+            // Explicitly Attach (LiveKit helper ensures mobile compatibility)
+            track.attach(mediaElement);
+
+            // FORCE PLAY: Ensure the browser plays the new audio track
+            mediaElement.muted = false;
+            mediaElement.play().catch(e => console.log("Audio autoplay check:", e));
+            updateStatus("🔊 Audio track received and attached.");
           }
 
           // 4. Specific handling for Video (Existing fade-in logic)
@@ -289,10 +290,46 @@
         }
       );
 
+      room.on(LivekitClient.RoomEvent.ConnectionQualityChanged, (connectionQuality, participant) => {
+        // We only care about the local participant's connection to the server
+        if (participant.sid !== room.localParticipant.sid) return;
+
+        let qualityText = "Unknown";
+        let color = "#9ca3af"; // gray
+
+        switch (connectionQuality) {
+          case LivekitClient.ConnectionQuality.Excellent:
+            qualityText = "Excellent";
+            color = "#22c55e"; // green
+            break;
+          case LivekitClient.ConnectionQuality.Good:
+            qualityText = "Good";
+            color = "#84cc16"; // lime
+            break;
+          case LivekitClient.ConnectionQuality.Poor:
+            qualityText = "Poor";
+            color = "#f59e0b"; // amber
+            break;
+          case LivekitClient.ConnectionQuality.Lost:
+            qualityText = "Lost";
+            color = "#ef4444"; // red
+            break;
+        }
+
+        // Log specific quality changes
+        logHighlight(`Signal Quality: ${qualityText}`, color);
+        
+        // If quality drops to Poor or Lost, we might want to warn the user
+        if (connectionQuality === LivekitClient.ConnectionQuality.Poor || 
+            connectionQuality === LivekitClient.ConnectionQuality.Lost) {
+           updateStatus(`⚠️ Connection instability detected: ${qualityText}`);
+        }
+      });
+
       room.on(LivekitClient.RoomEvent.Disconnected, (reason) => {
         if (isRefreshing) {
-            updateStatus("🔌 Manual disconnect for refresh (Ignored).");
-            return;
+          updateStatus("🔌 Manual disconnect for refresh (Ignored).");
+          return;
         }
         isReady = false;
         logHighlight(`🔌 Disconnected: ${reason}`, "#f97316");
