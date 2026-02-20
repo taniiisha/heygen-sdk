@@ -43,7 +43,7 @@
 
     let sessionTimer = null;
     let keepAliveInterval = null; // NEW: Keep-alive timer
-    const KEEP_ALIVE_INTERVAL_MS = 60 * 1000; // 1 minute
+    const KEEP_ALIVE_INTERVAL_MS = 30 * 1000; // 1 minute
     const SESSION_DURATION_MS = 19 * 60 * 1000; // 20 minutes for LiveAvatar
     // --- Internal State ---
     let isReady = false;
