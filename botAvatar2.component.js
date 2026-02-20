@@ -45,7 +45,7 @@
     let keepAliveInterval = null; // NEW: Keep-alive timer
     
     // FIX 1: Lowered keep-alive interval to 10 seconds to align with HeyGen limits
-    const KEEP_ALIVE_INTERVAL_MS = 10 * 1000; 
+    const KEEP_ALIVE_INTERVAL_MS = 30 * 1000; 
     
     const SESSION_DURATION_MS = 19 * 60 * 1000; // 20 minutes for LiveAvatar
     // --- Internal State ---
@@ -106,6 +106,8 @@
 
         // Step 2: Start Session (Spins up the avatar)
         await startSession();
+         // NEW: Start Keep-Alive Heartbeat
+        startKeepAliveHeartbeat();
 
         // Step 3: Connect to LiveKit
         await connectToLiveKit();
@@ -114,8 +116,7 @@
 
         updateStatus("✅ Session is ready and streaming!");
         
-        // NEW: Start Keep-Alive Heartbeat
-        startKeepAliveHeartbeat();
+       
         
         reconnectAttempts = 0;
         isReady = true;
@@ -437,17 +438,18 @@
     }
 
     // --- NEW: Keep-Alive Logic ---
-    function startKeepAliveHeartbeat() {
-      if (keepAliveInterval) clearInterval(keepAliveInterval);
-      
-      const intervalSec = KEEP_ALIVE_INTERVAL_MS / 1000;
-      logHighlight(`💓 Starting keep-alive heartbeat (every ${intervalSec}s)`, "#ec4899");
-      
-      // FIX 3: Trigger the first heartbeat immediately to cover the WebRTC negotiation gap
-      keepAliveSession();
+   function startKeepAliveHeartbeat() {
+  if (keepAliveInterval) clearInterval(keepAliveInterval);
+  
+  const intervalSec = KEEP_ALIVE_INTERVAL_MS / 1000;
+  logHighlight(`💓 Starting keep-alive heartbeat (every ${intervalSec}s)`, "#ec4899");
+  
+  // Fire instantly to cover the WebRTC negotiation gap
+  keepAliveSession();
 
-      keepAliveInterval = setInterval(keepAliveSession, KEEP_ALIVE_INTERVAL_MS);
-    }
+  // Then resume the normal 30-second cadence
+  keepAliveInterval = setInterval(keepAliveSession, KEEP_ALIVE_INTERVAL_MS);
+}
 
     function stopKeepAliveHeartbeat() {
       if (keepAliveInterval) {
