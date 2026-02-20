@@ -43,7 +43,10 @@
 
     let sessionTimer = null;
     let keepAliveInterval = null; // NEW: Keep-alive timer
-    const KEEP_ALIVE_INTERVAL_MS = 30 * 1000; // 1 minute
+    
+    // FIX 1: Lowered keep-alive interval to 10 seconds to align with HeyGen limits
+    const KEEP_ALIVE_INTERVAL_MS = 10 * 1000; 
+    
     const SESSION_DURATION_MS = 19 * 60 * 1000; // 20 minutes for LiveAvatar
     // --- Internal State ---
     let isReady = false;
@@ -198,38 +201,16 @@
       room.on(
         LivekitClient.RoomEvent.TrackSubscribed,
         (track, publication, participant) => {
-          // if (track.kind === "video" || track.kind === "audio") {
-          //   if (!mediaElement.srcObject) {
-          //     mediaElement.srcObject = new MediaStream();
-          //   }
-          //   mediaElement.srcObject.addTrack(track.mediaStreamTrack);
-          // }
-
-          // if (track.kind === "video") {
-          //   // We use 'onresize' or 'onloadeddata' as a proxy for "frame received"
-          //   // or we can simply attach the element and wait a tiny bit.
-          //   track.attach(mediaElement);
-
-          //   // Listener for when video is actually playing pixels
-          //   mediaElement.onplaying = function () {
-          //     updateStatus("👁️ Video stream is playing, fading in...");
-          //     setVideoVisibility(true);
-          //   };
-          // }
-
           if (!mediaElement.srcObject) {
             mediaElement.srcObject = new MediaStream();
           }
 
-          // 2. Add the track to the stream
+          // Add the track to the stream
           mediaElement.srcObject.addTrack(track.mediaStreamTrack);
 
-          // 3. NEW: Specific handling for Audio
+          // Specific handling for Audio
           if (track.kind === "audio") {
-            // Explicitly Attach (LiveKit helper ensures mobile compatibility)
             track.attach(mediaElement);
-
-            // FORCE PLAY: Ensure the browser plays the new audio track
             mediaElement.muted = false;
             mediaElement
               .play()
@@ -237,7 +218,7 @@
             updateStatus("🔊 Audio track received and attached.");
           }
 
-          // 4. Specific handling for Video (Existing fade-in logic)
+          // Specific handling for Video
           if (track.kind === "video") {
             track.attach(mediaElement);
             mediaElement.onplaying = function () {
@@ -247,33 +228,6 @@
           }
         },
       );
-
-      // Handle Data Messages (Events from Avatar)
-      // room.on(
-      //   LivekitClient.RoomEvent.DataReceived,
-      //   (payload, participant, kind, topic) => {
-      //     const strData = new TextDecoder().decode(payload);
-      //     try {
-      //       const msg = JSON.parse(strData);
-      //       // Event names might slightly differ in new API, keeping standard checks
-      //       if (
-      //         msg.type === "avatar_start_speaking" ||
-      //         msg.type === "start_speaking"
-      //       ) {
-      //         isSpeaking = true;
-      //         if (vm.onStartSpeaking) vm.onStartSpeaking();
-      //       } else if (
-      //         msg.type === "avatar_stop_talking" ||
-      //         msg.type === "stop_speaking"
-      //       ) {
-      //         isSpeaking = false;
-      //         if (vm.onStopSpeaking) vm.onStopSpeaking();
-      //       }
-      //     } catch (e) {
-      //       // updateStatus("Received raw data: " + strData);
-      //     }
-      //   }
-      // );
 
       room.on(
         LivekitClient.RoomEvent.DataReceived,
@@ -285,7 +239,7 @@
           try {
             const msg = JSON.parse(strData);
 
-            // NEW: Handle new Event Types
+            // Handle new Event Types
             if (msg.event_type === "avatar.speak_started") {
               isSpeaking = true;
               if (vm.onStartSpeaking) vm.onStartSpeaking();
@@ -304,35 +258,32 @@
       room.on(
         LivekitClient.RoomEvent.ConnectionQualityChanged,
         (connectionQuality, participant) => {
-          // We only care about the local participant's connection to the server
           if (participant.sid !== room.localParticipant.sid) return;
 
           let qualityText = "Unknown";
-          let color = "#9ca3af"; // gray
+          let color = "#9ca3af";
 
           switch (connectionQuality) {
             case LivekitClient.ConnectionQuality.Excellent:
               qualityText = "Excellent";
-              color = "#22c55e"; // green
+              color = "#22c55e";
               break;
             case LivekitClient.ConnectionQuality.Good:
               qualityText = "Good";
-              color = "#84cc16"; // lime
+              color = "#84cc16";
               break;
             case LivekitClient.ConnectionQuality.Poor:
               qualityText = "Poor";
-              color = "#f59e0b"; // amber
+              color = "#f59e0b";
               break;
             case LivekitClient.ConnectionQuality.Lost:
               qualityText = "Lost";
-              color = "#ef4444"; // red
+              color = "#ef4444";
               break;
           }
 
-          // Log specific quality changes
           logHighlight(`Signal Quality: ${qualityText}`, color);
 
-          // If quality drops to Poor or Lost, we might want to warn the user
           if (
             connectionQuality === LivekitClient.ConnectionQuality.Poor ||
             connectionQuality === LivekitClient.ConnectionQuality.Lost
@@ -360,64 +311,38 @@
         }
       });
 
+      // FIX 2: Added explicit connection options to speed up WebRTC fallback
+      var connectOptions = {
+        autoSubscribe: true,
+        peerConnectionTimeout: 5000 // Default is 15000. Reducing helps it failover to TURN faster in firewall networks.
+      };
+
       // Connect using the URL and Token returned from 'startSession'
       await room.connect(
         sessionInfo.livekit_url,
         sessionInfo.livekit_client_token,
+        connectOptions
       );
       updateStatus("🔗 Connected to LiveKit room.");
 
       isRefreshing = false;
     }
 
-    // --- Updated: Send Text via Data Channel ---
-    // The new API recommends using LiveKit Data Channels for commands instead of HTTP REST
-    // async function sendText(text, taskType) {
-    //   if (!isReady || !room) {
-    //     updateStatus("⚠️ Cannot send text, session not ready.");
-    //     return;
-    //   }
-    //   isSpeaking = true;
-    //   updateStatus(`📤 Sending text: "${text}"`);
-
-    //   // Construct Command Payload
-    //   // Note: Verify exact JSON structure in LiveAvatar docs; this is the standard pattern.
-    //   const commandPayload = JSON.stringify({
-    //     type: "speak", // Command type
-    //     text: text,
-    //     task_type: taskType, // 'repeat' or 'chat'
-    //   });
-
-    //   const dataEncoder = new TextEncoder();
-    //   const data = dataEncoder.encode(commandPayload);
-
-    //   try {
-    //     // Publish data to the room (Reliable = true for commands)
-    //     await room.localParticipant.publishData(data, {
-    //       reliable: true,
-    //       topic: "avatar_command", // specific topic if required by new API
-    //     });
-    //   } catch (error) {
-    //     updateStatus(`⚠️ Error sending data: ${error.message}`);
-    //   }
-    // }
-
     async function sendText(text) {
-      // ... (previous checks)
-
-      // 1. Determine if we want it to just 'speak' (repeat) or 'chat' (respond)
+      if (!isReady || !room || !room.localParticipant) {
+        updateStatus("⚠️ Cannot send text, session not ready.");
+        return;
+      }
+      
       const eventType = "avatar.speak_text";
-
-      // 2. Construct the payload
       const commandPayload = JSON.stringify({
         event_type: eventType,
-        text: text, // <--- HERE is where you are sending the text
+        text: text, 
       });
 
       const dataEncoder = new TextEncoder();
       const data = dataEncoder.encode(commandPayload);
 
-      // 3. Publish to 'agent-control' topic
       await room.localParticipant.publishData(data, {
         reliable: true,
         topic: "agent-control",
@@ -441,14 +366,10 @@
     async function closeSession() {
       if (!sessionInfo) return;
       try {
-        // STOP session endpoint
         await fetch(`${API_CONFIG.serverUrl}/v1/sessions/stop`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            // For Stop, we might need the session token or just API key depending on auth
-            // The docs say "If session token used... session_id not required"
-            // But we'll pass headers just in case.
             Authorization: `Bearer ${sessionToken}`,
           },
           body: JSON.stringify({ session_id: sessionInfo.session_id }),
@@ -457,7 +378,7 @@
       } catch (error) {
         updateStatus(`⚠️ Error stopping: ${error.message}`);
       }
-      stopKeepAliveHeartbeat(); // NEW: Create a clean cleanup
+      stopKeepAliveHeartbeat();
       if (room) room.disconnect();
       mediaElement.srcObject = null;
       isReady = false;
@@ -476,15 +397,12 @@
       const styles = `color: ${color}; font-weight: bold; font-size: 14px; background: #f0f0f0; padding: 5px; border-left: 5px solid ${color};`;
       console.log(`%c [BotAvatar] ${message} `, styles);
 
-      // This is what updates the UI text!
       if (vm.onStatusChange) {
         vm.onStatusChange({ status: message });
       }
     }
 
-    // --- Add this NEW function ---
     function startSessionTimer() {
-      // Clear any existing timer
       if (sessionTimer) clearTimeout(sessionTimer);
 
       updateStatus("⏳ Session timer started (1m 50s).");
@@ -496,35 +414,12 @@
     }
 
     function handleSessionTimeout() {
-      // 1. Fade out the live video.
-      // This reveals the 'fallback-video.mov' which is running underneath.
       setVideoVisibility(false);
       logHighlight("♻️ Reconnecting (Background)...", "#eab308");
       isRefreshing = true;
-      // 2. Wait a moment for the fade-out to finish (e.g., 500ms), then reconnect
       setTimeout(function () {
-        // We do NOT use 'attemptReconnect' here because that increases the retry counter.
-        // We want a fresh restart.
-
-        // Stop the old room explicitly
-        // if (room) {
-        //     room.removeAllListeners(LivekitClient.RoomEvent.Disconnected);
-        //     room.disconnect();
-        // }
-
-        // if (mediaElement) {
-        //     mediaElement.srcObject = null;
-        // }
-
         closeSession();
-
-        // 2. Reset reconnection attempts so the new session gets a fresh start
         reconnectAttempts = 0;
-
-        // Optional: Call stop session API if you want to be clean,
-        // but for speed, we might just start the new one.
-        // Let's stick to your initializeAndConnect flow which starts fresh.
-
         updateStatus(
           "🔄 Starting fresh session for background reconnection...",
         );
@@ -548,6 +443,9 @@
       const intervalSec = KEEP_ALIVE_INTERVAL_MS / 1000;
       logHighlight(`💓 Starting keep-alive heartbeat (every ${intervalSec}s)`, "#ec4899");
       
+      // FIX 3: Trigger the first heartbeat immediately to cover the WebRTC negotiation gap
+      keepAliveSession();
+
       keepAliveInterval = setInterval(keepAliveSession, KEEP_ALIVE_INTERVAL_MS);
     }
 
@@ -566,7 +464,6 @@
       }
       try {
         console.log(`[BotAvatar] 💓 Sending keep-alive request for session ${sessionInfo.session_id}...`);
-        // endpoint: /v1/sessions/keep-alive
         const response = await fetch(`${API_CONFIG.serverUrl}/v1/sessions/keep-alive`, {
           method: "POST",
           headers: {
