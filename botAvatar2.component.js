@@ -45,7 +45,9 @@
     let keepAliveInterval = null; // NEW: Keep-alive timer
     
     // FIX 1: Lowered keep-alive interval to 10 seconds to align with HeyGen limits
-    const KEEP_ALIVE_INTERVAL_MS = 30 * 1000; 
+    // const KEEP_ALIVE_INTERVAL_MS = 30 * 1000; 
+    // Change this back to 10 seconds
+const KEEP_ALIVE_INTERVAL_MS = 10 * 1000;
     
     const SESSION_DURATION_MS = 19 * 60 * 1000; // 20 minutes for LiveAvatar
     // --- Internal State ---
@@ -193,9 +195,16 @@
       }
 
       // Initialize LiveKit Room
+      // room = new LivekitClient.Room({
+      //   adaptiveStream: true,
+      //   dynacast: true,
+      // });
       room = new LivekitClient.Room({
         adaptiveStream: true,
         dynacast: true,
+        rtcConfig: {
+            iceTransportPolicy: 'relay' // Skips UDP gathering and forces TCP/TLS TURN server
+        }
       });
 
       // Handle Media Tracks (Video/Audio)
