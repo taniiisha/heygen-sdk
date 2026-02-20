@@ -33,17 +33,17 @@
       avatar_id: "bf00036b-558a-44b5-b2ff-1e3cec0f4ceb",
       is_sandbox: false,
       avatar_persona: { voice_id: "62bbb4b2-bb26-4727-bc87-cfb2bd4e0cc8" },
-      interactivity_type: 'PUSH_TO_TALK',
+      interactivity_type: "PUSH_TO_TALK",
 
-      "session_idle_timeout": 600,
+      session_idle_timeout: 600,
 
       // 2. Add the legacy/SDK key just in case
-      "activity_idle_timeout": 600
-
+      activity_idle_timeout: 600,
     };
 
-
     let sessionTimer = null;
+    let keepAliveInterval = null; // NEW: Keep-alive timer
+    const KEEP_ALIVE_INTERVAL_MS = 60 * 1000; // 1 minute
     const SESSION_DURATION_MS = 19 * 60 * 1000; // 20 minutes for LiveAvatar
     // --- Internal State ---
     let isReady = false;
@@ -87,6 +87,7 @@
       logHighlight("🚪 Disconnecting...", "#ef4444");
       if (reconnectTimeoutId) clearTimeout(reconnectTimeoutId);
       if (sessionTimer) clearTimeout(sessionTimer);
+      stopKeepAliveHeartbeat(); // NEW: Stop keep-alive
       closeSession();
     };
 
@@ -109,6 +110,10 @@
         logHighlight("connected", "#22c55e");
 
         updateStatus("✅ Session is ready and streaming!");
+        
+        // NEW: Start Keep-Alive Heartbeat
+        startKeepAliveHeartbeat();
+        
         reconnectAttempts = 0;
         isReady = true;
       } catch (error) {
@@ -131,7 +136,7 @@
           },
           // Configuration happens here now
           body: JSON.stringify(SESSION_CONFIG),
-        }
+        },
       );
 
       if (!response.ok)
@@ -160,8 +165,12 @@
           body: JSON.stringify({
             // Optional: Pass specific LiveKit config here if needed (e.g. 'custom' mode)
             // If empty, LiveAvatar provides the room (default behavior)
+            livekit_config: {
+              url: "wss://your-custom-region.livekit.cloud", // <--- YOU CONTROL THIS
+              token: "ey...", // <--- Token you generated for the Avatar to join
+            },
           }),
-        }
+        },
       );
 
       if (!response.ok)
@@ -222,7 +231,9 @@
 
             // FORCE PLAY: Ensure the browser plays the new audio track
             mediaElement.muted = false;
-            mediaElement.play().catch(e => console.log("Audio autoplay check:", e));
+            mediaElement
+              .play()
+              .catch((e) => console.log("Audio autoplay check:", e));
             updateStatus("🔊 Audio track received and attached.");
           }
 
@@ -234,7 +245,7 @@
               setVideoVisibility(true);
             };
           }
-        }
+        },
       );
 
       // Handle Data Messages (Events from Avatar)
@@ -287,44 +298,49 @@
           } catch (e) {
             console.error("Error parsing data message:", e);
           }
-        }
+        },
       );
 
-      room.on(LivekitClient.RoomEvent.ConnectionQualityChanged, (connectionQuality, participant) => {
-        // We only care about the local participant's connection to the server
-        if (participant.sid !== room.localParticipant.sid) return;
+      room.on(
+        LivekitClient.RoomEvent.ConnectionQualityChanged,
+        (connectionQuality, participant) => {
+          // We only care about the local participant's connection to the server
+          if (participant.sid !== room.localParticipant.sid) return;
 
-        let qualityText = "Unknown";
-        let color = "#9ca3af"; // gray
+          let qualityText = "Unknown";
+          let color = "#9ca3af"; // gray
 
-        switch (connectionQuality) {
-          case LivekitClient.ConnectionQuality.Excellent:
-            qualityText = "Excellent";
-            color = "#22c55e"; // green
-            break;
-          case LivekitClient.ConnectionQuality.Good:
-            qualityText = "Good";
-            color = "#84cc16"; // lime
-            break;
-          case LivekitClient.ConnectionQuality.Poor:
-            qualityText = "Poor";
-            color = "#f59e0b"; // amber
-            break;
-          case LivekitClient.ConnectionQuality.Lost:
-            qualityText = "Lost";
-            color = "#ef4444"; // red
-            break;
-        }
+          switch (connectionQuality) {
+            case LivekitClient.ConnectionQuality.Excellent:
+              qualityText = "Excellent";
+              color = "#22c55e"; // green
+              break;
+            case LivekitClient.ConnectionQuality.Good:
+              qualityText = "Good";
+              color = "#84cc16"; // lime
+              break;
+            case LivekitClient.ConnectionQuality.Poor:
+              qualityText = "Poor";
+              color = "#f59e0b"; // amber
+              break;
+            case LivekitClient.ConnectionQuality.Lost:
+              qualityText = "Lost";
+              color = "#ef4444"; // red
+              break;
+          }
 
-        // Log specific quality changes
-        logHighlight(`Signal Quality: ${qualityText}`, color);
-        
-        // If quality drops to Poor or Lost, we might want to warn the user
-        if (connectionQuality === LivekitClient.ConnectionQuality.Poor || 
-            connectionQuality === LivekitClient.ConnectionQuality.Lost) {
-           updateStatus(`⚠️ Connection instability detected: ${qualityText}`);
-        }
-      });
+          // Log specific quality changes
+          logHighlight(`Signal Quality: ${qualityText}`, color);
+
+          // If quality drops to Poor or Lost, we might want to warn the user
+          if (
+            connectionQuality === LivekitClient.ConnectionQuality.Poor ||
+            connectionQuality === LivekitClient.ConnectionQuality.Lost
+          ) {
+            updateStatus(`⚠️ Connection instability detected: ${qualityText}`);
+          }
+        },
+      );
 
       room.on(LivekitClient.RoomEvent.Disconnected, (reason) => {
         if (isRefreshing) {
@@ -347,7 +363,7 @@
       // Connect using the URL and Token returned from 'startSession'
       await room.connect(
         sessionInfo.livekit_url,
-        sessionInfo.livekit_client_token
+        sessionInfo.livekit_client_token,
       );
       updateStatus("🔗 Connected to LiveKit room.");
 
@@ -441,6 +457,7 @@
       } catch (error) {
         updateStatus(`⚠️ Error stopping: ${error.message}`);
       }
+      stopKeepAliveHeartbeat(); // NEW: Create a clean cleanup
       if (room) room.disconnect();
       mediaElement.srcObject = null;
       isReady = false;
@@ -509,7 +526,7 @@
         // Let's stick to your initializeAndConnect flow which starts fresh.
 
         updateStatus(
-          "🔄 Starting fresh session for background reconnection..."
+          "🔄 Starting fresh session for background reconnection...",
         );
         initializeAndConnect();
       }, 500);
@@ -521,6 +538,51 @@
         mediaElement.classList.add("fade-in");
       } else {
         mediaElement.classList.remove("fade-in");
+      }
+    }
+
+    // --- NEW: Keep-Alive Logic ---
+    function startKeepAliveHeartbeat() {
+      if (keepAliveInterval) clearInterval(keepAliveInterval);
+      
+      const intervalSec = KEEP_ALIVE_INTERVAL_MS / 1000;
+      logHighlight(`💓 Starting keep-alive heartbeat (every ${intervalSec}s)`, "#ec4899");
+      
+      keepAliveInterval = setInterval(keepAliveSession, KEEP_ALIVE_INTERVAL_MS);
+    }
+
+    function stopKeepAliveHeartbeat() {
+      if (keepAliveInterval) {
+        clearInterval(keepAliveInterval);
+        keepAliveInterval = null;
+        logHighlight("sz Stopped keep-alive heartbeat", "#ec4899");
+      }
+    }
+
+    async function keepAliveSession() {
+      if (!sessionInfo || !sessionInfo.session_id) {
+        console.warn("[BotAvatar] ⚠️ Keep-alive skipped: No session info.");
+        return;
+      }
+      try {
+        console.log(`[BotAvatar] 💓 Sending keep-alive request for session ${sessionInfo.session_id}...`);
+        // endpoint: /v1/sessions/keep-alive
+        const response = await fetch(`${API_CONFIG.serverUrl}/v1/sessions/keep-alive`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${sessionToken}`, 
+          },
+          body: JSON.stringify({ session_id: sessionInfo.session_id }),
+        });
+        
+        if (response.ok) {
+             console.log(`[BotAvatar] 💓 Keep-alive SUCCESS at ${new Date().toLocaleTimeString()}`);
+        } else {
+             console.warn(`[BotAvatar] ⚠️ Keep-alive returned status: ${response.status}`);
+        }
+      } catch (error) {
+        console.warn(`[BotAvatar] ⚠️ Keep-alive failed: ${error.message}`);
       }
     }
   }
