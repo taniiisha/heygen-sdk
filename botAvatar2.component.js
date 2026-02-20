@@ -47,7 +47,7 @@
     // FIX 1: Lowered keep-alive interval to 10 seconds to align with HeyGen limits
     // const KEEP_ALIVE_INTERVAL_MS = 30 * 1000; 
     // Change this back to 10 seconds
-const KEEP_ALIVE_INTERVAL_MS = 10 * 1000;
+const KEEP_ALIVE_INTERVAL_MS = 30 * 1000;
     
     const SESSION_DURATION_MS = 19 * 60 * 1000; // 20 minutes for LiveAvatar
     // --- Internal State ---
@@ -322,15 +322,14 @@ const KEEP_ALIVE_INTERVAL_MS = 10 * 1000;
       });
 
       // FIX 2: Added explicit connection options to speed up WebRTC fallback
-      var connectOptions = {
-        autoSubscribe: true,
-      };
+      // var connectOptions = {
+      //   autoSubscribe: true,
+      // };
 
       // Connect using the URL and Token returned from 'startSession'
       await room.connect(
         sessionInfo.livekit_url,
         sessionInfo.livekit_client_token,
-        connectOptions
       );
       updateStatus("🔗 Connected to LiveKit room.");
 
