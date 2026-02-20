@@ -324,7 +324,6 @@ const KEEP_ALIVE_INTERVAL_MS = 10 * 1000;
       // FIX 2: Added explicit connection options to speed up WebRTC fallback
       var connectOptions = {
         autoSubscribe: true,
-        peerConnectionTimeout: 5000 // Default is 15000. Reducing helps it failover to TURN faster in firewall networks.
       };
 
       // Connect using the URL and Token returned from 'startSession'
