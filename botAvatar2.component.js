@@ -47,7 +47,7 @@
     // FIX 1: Lowered keep-alive interval to 10 seconds to align with HeyGen limits
     // const KEEP_ALIVE_INTERVAL_MS = 30 * 1000; 
     // Change this back to 10 seconds
-const KEEP_ALIVE_INTERVAL_MS = 30 * 1000;
+const KEEP_ALIVE_INTERVAL_MS = 10 * 1000;
     
     const SESSION_DURATION_MS = 19 * 60 * 1000; // 20 minutes for LiveAvatar
     // --- Internal State ---
@@ -63,6 +63,8 @@ const KEEP_ALIVE_INTERVAL_MS = 30 * 1000;
     let reconnectAttempts = 0;
     const maxReconnectAttempts = 3;
     let reconnectTimeoutId = null;
+    let httpKeepAliveFails = 0;
+    const MAX_HTTP_FAILS = 2; // Will switch to WebRTC-only after 2 consecutive failures
 
     // --- Component Lifecycle Hooks ---
     vm.$onInit = function () {
@@ -121,6 +123,7 @@ const KEEP_ALIVE_INTERVAL_MS = 30 * 1000;
        
         
         reconnectAttempts = 0;
+        httpKeepAliveFails = 0;
         isReady = true;
       } catch (error) {
         updateStatus(`❌ Session failed to start: ${error.message}`);
@@ -466,30 +469,87 @@ const KEEP_ALIVE_INTERVAL_MS = 30 * 1000;
       }
     }
 
-    async function keepAliveSession() {
+   async function keepAliveSession() {
       if (!sessionInfo || !sessionInfo.session_id) {
         console.warn("[BotAvatar] ⚠️ Keep-alive skipped: No session info.");
         return;
       }
-      try {
-        console.log(`[BotAvatar] 💓 Sending keep-alive request for session ${sessionInfo.session_id}...`);
-        const response = await fetch(`${API_CONFIG.serverUrl}/v1/sessions/keep-alive`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${sessionToken}`, 
-          },
-          body: JSON.stringify({ session_id: sessionInfo.session_id }),
-        });
-        
-        if (response.ok) {
-             console.log(`[BotAvatar] 💓 Keep-alive SUCCESS at ${new Date().toLocaleTimeString()}`);
-        } else {
-             console.warn(`[BotAvatar] ⚠️ Keep-alive returned status: ${response.status}`);
+
+      // 1. First, attempt the official HTTP Keep-Alive (if circuit is closed)
+      if (httpKeepAliveFails < MAX_HTTP_FAILS) {
+        try {
+          const response = await fetch(`${API_CONFIG.serverUrl}/v1/sessions/keep-alive`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${sessionToken}`, 
+            },
+            body: JSON.stringify({ session_id: sessionInfo.session_id }),
+          });
+          
+          if (response.ok) {
+             httpKeepAliveFails = 0; // Reset counter on successful HTTP ping
+             console.log(`[BotAvatar] 💓 HTTP Keep-alive SUCCESS`);
+             return; // Exit early. No need for WebRTC ping if HTTP worked.
+          } else {
+             httpKeepAliveFails++;
+             console.warn(`[BotAvatar] ⚠️ HTTP Keep-alive returned ${response.status}. Attempt ${httpKeepAliveFails}/${MAX_HTTP_FAILS}. Falling back to Data Channel.`);
+          }
+        } catch (error) {
+          httpKeepAliveFails++;
+          console.warn(`[BotAvatar] ⚠️ HTTP Keep-alive failed: ${error.message}. Attempt ${httpKeepAliveFails}/${MAX_HTTP_FAILS}. Falling back to Data Channel.`);
         }
-      } catch (error) {
-        console.warn(`[BotAvatar] ⚠️ Keep-alive failed: ${error.message}`);
+      } else {
+         // Circuit is open: Stop trying the API and just log that we are using WebRTC
+         console.log("[BotAvatar] 🔌 HTTP Keep-alive circuit open. Bypassing API and using WebRTC exclusively.");
+      }
+
+      // 2. Fallback: Send a dummy "no-op" event over the LiveKit Data Channel
+      // This keeps the orphaned HeyGen worker pod alive if the HTTP session ID is lost or blocked.
+      if (room && room.localParticipant) {
+        try {
+          console.log("[BotAvatar] 📡 Sending data channel heartbeat (avatar.stop_listening)...");
+          const commandPayload = JSON.stringify({
+            event_type: "avatar.stop_listening" 
+          });
+
+          const dataEncoder = new TextEncoder();
+          const data = dataEncoder.encode(commandPayload);
+
+          await room.localParticipant.publishData(data, {
+            reliable: true,
+            topic: "agent-control",
+          });
+        } catch (error) {
+           console.error(`[BotAvatar] ❌ Data channel heartbeat failed: ${error.message}`);
+        }
       }
     }
+
+    // async function keepAliveSession() {
+    //   if (!sessionInfo || !sessionInfo.session_id) {
+    //     console.warn("[BotAvatar] ⚠️ Keep-alive skipped: No session info.");
+    //     return;
+    //   }
+    //   try {
+    //     console.log(`[BotAvatar] 💓 Sending keep-alive request for session ${sessionInfo.session_id}...`);
+    //     const response = await fetch(`${API_CONFIG.serverUrl}/v1/sessions/keep-alive`, {
+    //       method: "POST",
+    //       headers: {
+    //         "Content-Type": "application/json",
+    //         Authorization: `Bearer ${sessionToken}`, 
+    //       },
+    //       body: JSON.stringify({ session_id: sessionInfo.session_id }),
+    //     });
+        
+    //     if (response.ok) {
+    //          console.log(`[BotAvatar] 💓 Keep-alive SUCCESS at ${new Date().toLocaleTimeString()}`);
+    //     } else {
+    //          console.warn(`[BotAvatar] ⚠️ Keep-alive returned status: ${response.status}`);
+    //     }
+    //   } catch (error) {
+    //     console.warn(`[BotAvatar] ⚠️ Keep-alive failed: ${error.message}`);
+    //   }
+    // }
   }
 })();
