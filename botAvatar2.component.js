@@ -43,12 +43,12 @@
 
     let sessionTimer = null;
     let keepAliveInterval = null; // NEW: Keep-alive timer
-    
+
     // FIX 1: Lowered keep-alive interval to 10 seconds to align with HeyGen limits
     // const KEEP_ALIVE_INTERVAL_MS = 30 * 1000; 
     // Change this back to 10 seconds
-const KEEP_ALIVE_INTERVAL_MS = 10 * 1000;
-    
+    const KEEP_ALIVE_INTERVAL_MS = 10 * 1000;
+
     const SESSION_DURATION_MS = 19 * 60 * 1000; // 20 minutes for LiveAvatar
     // --- Internal State ---
     let isReady = false;
@@ -110,7 +110,7 @@ const KEEP_ALIVE_INTERVAL_MS = 10 * 1000;
 
         // Step 2: Start Session (Spins up the avatar)
         await startSession();
-         // NEW: Start Keep-Alive Heartbeat
+        // NEW: Start Keep-Alive Heartbeat
         startKeepAliveHeartbeat();
 
         // Step 3: Connect to LiveKit
@@ -119,9 +119,9 @@ const KEEP_ALIVE_INTERVAL_MS = 10 * 1000;
         logHighlight("connected", "#22c55e");
 
         updateStatus("✅ Session is ready and streaming!");
-        
-       
-        
+
+
+
         reconnectAttempts = 0;
         httpKeepAliveFails = 0;
         isReady = true;
@@ -206,7 +206,7 @@ const KEEP_ALIVE_INTERVAL_MS = 10 * 1000;
         adaptiveStream: true,
         dynacast: true,
         rtcConfig: {
-            iceTransportPolicy: 'relay' // Skips UDP gathering and forces TCP/TLS TURN server
+          iceTransportPolicy: 'relay' // Skips UDP gathering and forces TCP/TLS TURN server
         }
       });
 
@@ -344,11 +344,11 @@ const KEEP_ALIVE_INTERVAL_MS = 10 * 1000;
         updateStatus("⚠️ Cannot send text, session not ready.");
         return;
       }
-      
+
       const eventType = "avatar.speak_text";
       const commandPayload = JSON.stringify({
         event_type: eventType,
-        text: text, 
+        text: text,
       });
 
       const dataEncoder = new TextEncoder();
@@ -448,18 +448,18 @@ const KEEP_ALIVE_INTERVAL_MS = 10 * 1000;
     }
 
     // --- NEW: Keep-Alive Logic ---
-   function startKeepAliveHeartbeat() {
-  if (keepAliveInterval) clearInterval(keepAliveInterval);
-  
-  const intervalSec = KEEP_ALIVE_INTERVAL_MS / 1000;
-  logHighlight(`💓 Starting keep-alive heartbeat (every ${intervalSec}s)`, "#ec4899");
-  
-  // Fire instantly to cover the WebRTC negotiation gap
-  keepAliveSession();
+    function startKeepAliveHeartbeat() {
+      if (keepAliveInterval) clearInterval(keepAliveInterval);
 
-  // Then resume the normal 30-second cadence
-  keepAliveInterval = setInterval(keepAliveSession, KEEP_ALIVE_INTERVAL_MS);
-}
+      const intervalSec = KEEP_ALIVE_INTERVAL_MS / 1000;
+      logHighlight(`💓 Starting keep-alive heartbeat (every ${intervalSec}s)`, "#ec4899");
+
+      // Fire instantly to cover the WebRTC negotiation gap
+      keepAliveSession();
+
+      // Then resume the normal 30-second cadence
+      keepAliveInterval = setInterval(keepAliveSession, KEEP_ALIVE_INTERVAL_MS);
+    }
 
     function stopKeepAliveHeartbeat() {
       if (keepAliveInterval) {
@@ -469,7 +469,7 @@ const KEEP_ALIVE_INTERVAL_MS = 10 * 1000;
       }
     }
 
-   async function keepAliveSession() {
+    async function keepAliveSession() {
       if (!sessionInfo || !sessionInfo.session_id) {
         console.warn("[BotAvatar] ⚠️ Keep-alive skipped: No session info.");
         return;
@@ -482,35 +482,36 @@ const KEEP_ALIVE_INTERVAL_MS = 10 * 1000;
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${sessionToken}`, 
+              Authorization: `Bearer ${sessionToken}`,
             },
             body: JSON.stringify({ session_id: sessionInfo.session_id }),
           });
-          
+
           if (response.ok) {
-             httpKeepAliveFails = 0; // Reset counter on successful HTTP ping
-             console.log(`[BotAvatar] 💓 HTTP Keep-alive SUCCESS`);
-             return; // Exit early. No need for WebRTC ping if HTTP worked.
+            httpKeepAliveFails = 0; // Reset counter on successful HTTP ping
+            console.log(`[BotAvatar] 💓 HTTP Keep-alive SUCCESS`);
+            return; // Exit early. No need for WebRTC ping if HTTP worked.
           } else {
-             httpKeepAliveFails++;
-             console.warn(`[BotAvatar] ⚠️ HTTP Keep-alive returned ${response.status}. Attempt ${httpKeepAliveFails}/${MAX_HTTP_FAILS}. Falling back to Data Channel.`);
+            httpKeepAliveFails++;
+            console.warn(`[BotAvatar] ⚠️ HTTP Keep-alive returned ${response.status}. Attempt ${httpKeepAliveFails}/${MAX_HTTP_FAILS}. Falling back to Data Channel.`);
           }
         } catch (error) {
           httpKeepAliveFails++;
           console.warn(`[BotAvatar] ⚠️ HTTP Keep-alive failed: ${error.message}. Attempt ${httpKeepAliveFails}/${MAX_HTTP_FAILS}. Falling back to Data Channel.`);
         }
       } else {
-         // Circuit is open: Stop trying the API and just log that we are using WebRTC
-         console.log("[BotAvatar] 🔌 HTTP Keep-alive circuit open. Bypassing API and using WebRTC exclusively.");
+        // Circuit is open: Stop trying the API and just log that we are using WebRTC
+        console.log("[BotAvatar] 🔌 HTTP Keep-alive circuit open. Bypassing API and using WebRTC exclusively.");
       }
 
       // 2. Fallback: Send a dummy "no-op" event over the LiveKit Data Channel
       // This keeps the orphaned HeyGen worker pod alive if the HTTP session ID is lost or blocked.
       if (room && room.localParticipant) {
         try {
-          console.log("[BotAvatar] 📡 Sending data channel heartbeat (avatar.stop_listening)...");
+          // console.log("[BotAvatar] 📡 Sending data channel heartbeat (avatar.stop_listening)...");
+          logHighlight("💓 Sending data channel heartbeat (avatar.stop_listening)...");
           const commandPayload = JSON.stringify({
-            event_type: "avatar.stop_listening" 
+            event_type: "avatar.stop_listening"
           });
 
           const dataEncoder = new TextEncoder();
@@ -521,7 +522,7 @@ const KEEP_ALIVE_INTERVAL_MS = 10 * 1000;
             topic: "agent-control",
           });
         } catch (error) {
-           console.error(`[BotAvatar] ❌ Data channel heartbeat failed: ${error.message}`);
+          console.error(`[BotAvatar] ❌ Data channel heartbeat failed: ${error.message}`);
         }
       }
     }
@@ -541,7 +542,7 @@ const KEEP_ALIVE_INTERVAL_MS = 10 * 1000;
     //       },
     //       body: JSON.stringify({ session_id: sessionInfo.session_id }),
     //     });
-        
+
     //     if (response.ok) {
     //          console.log(`[BotAvatar] 💓 Keep-alive SUCCESS at ${new Date().toLocaleTimeString()}`);
     //     } else {
