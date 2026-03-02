@@ -35,10 +35,10 @@
       avatar_persona: { voice_id: "62bbb4b2-bb26-4727-bc87-cfb2bd4e0cc8" },
       // interactivity_type: "PUSH_TO_TALK",
 
-      session_idle_timeout: 600,
+      // session_idle_timeout: 600,
 
       // 2. Add the legacy/SDK key just in case
-      activity_idle_timeout: 600,
+      // activity_idle_timeout: 600,
     };
 
     let sessionTimer = null;
