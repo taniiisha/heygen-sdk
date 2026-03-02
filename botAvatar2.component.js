@@ -33,7 +33,7 @@
       avatar_id: "bf00036b-558a-44b5-b2ff-1e3cec0f4ceb",
       is_sandbox: false,
       avatar_persona: { voice_id: "62bbb4b2-bb26-4727-bc87-cfb2bd4e0cc8" },
-      interactivity_type: "PUSH_TO_TALK",
+      // interactivity_type: "PUSH_TO_TALK",
 
       session_idle_timeout: 600,
 
@@ -111,7 +111,7 @@
         // Step 2: Start Session (Spins up the avatar)
         await startSession();
         // NEW: Start Keep-Alive Heartbeat
-        startKeepAliveHeartbeat();
+        // startKeepAliveHeartbeat();
 
         // Step 3: Connect to LiveKit
         await connectToLiveKit();
