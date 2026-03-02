@@ -171,14 +171,7 @@
             // Use the token from Step 1 as Bearer
             Authorization: `Bearer ${sessionToken}`,
           },
-          body: JSON.stringify({
-            // Optional: Pass specific LiveKit config here if needed (e.g. 'custom' mode)
-            // If empty, LiveAvatar provides the room (default behavior)
-            livekit_config: {
-              url: "wss://your-custom-region.livekit.cloud", // <--- YOU CONTROL THIS
-              token: "ey...", // <--- Token you generated for the Avatar to join
-            },
-          }),
+          body: JSON.stringify({}),
         },
       );
 
