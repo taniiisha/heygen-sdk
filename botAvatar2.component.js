@@ -341,6 +341,7 @@
       const eventType = "avatar.speak_text";
       const commandPayload = JSON.stringify({
         event_type: eventType,
+        session_id: sessionInfo.session_id,
         text: text,
       });
 
